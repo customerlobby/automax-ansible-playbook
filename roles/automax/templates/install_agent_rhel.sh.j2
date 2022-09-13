@@ -1,0 +1,336 @@
+#!/bin/bash -u
+
+LOGFILE=/tmp/amagent_install.log
+AGENT=/opt/amagent/amagent
+OS=Linux
+OSNAME=Unknown
+OSVER=Unknown
+ARCH=`arch`
+PKGFORMAT=rpm
+PGP_PUB=automox-pgp-pub.asc
+
+KEY="{{ automax_access_key }}"
+
+function log {
+    echo -n `date` >> $LOGFILE
+    echo " "$* >> $LOGFILE
+}
+
+function fail {
+    log " Failed:"$1
+    echo $1
+    exit 1
+}
+
+function CheckRH {
+    # The pattern for RHEL 7x is redhat-release-<flavor>-<major>.<minor>.el
+    # RHEL 8.x is redhat-release-<major>.<minor>.el
+    for flavor in '-server' '-workstation' '-desktop' ''; do
+        result=$(rpm -q redhat-release${flavor})
+        if [[ ${?} -eq 0 ]]; then
+             echo ${result} | sed -r "s/^redhat-release${flavor}-(.+).el.*$/\1/"
+             return 0
+        fi
+    done
+    return 1
+}
+
+function getOS {
+    log "Checking OS"
+
+    MACCHECK=`uname`
+    log "MACCHECK=${MACCHECK}"
+
+    if [[ $MACCHECK == 'Darwin' ]]; then
+        OS=Mac
+        OSNAME="OSX"
+        AGENT=/usr/local/bin/amagent
+        PKGFORMAT=pkg
+        OSVER=`sw_vers | grep ProductVersion | sed -E 's/^ProductVersion:[[:blank:]]+(.*)$/\1/'`
+        return
+    fi
+
+    DEBCHECK=$(dpkg -s base-files 2>&1 | grep ^Version)
+    RET=$?
+    log "DEBCHECK=${DEBCHECK}"
+    if [[ $RET -eq 0 ]]; then
+        if [[ $DEBCHECK == *ubuntu* ]]; then
+            OSNAME=Ubuntu
+        else
+            OSNAME=Debian
+        fi
+        OSVER=$(lsb_release -a 2>/dev/null | sed -ne 's/^Release:[[:blank:]]*//p')
+        PKGFORMAT=deb
+        return
+    fi
+
+    # This check identifies CentOS versions prior to 8.3
+    CENTOSCHECK=`rpm -q centos-release 2>&1`
+    RET=$?
+    log "CENTOSCHECK=${CENTOSCHECK}"
+    if [ $RET -eq 0 ]; then
+        OSNAME=CentOS
+        OSVER=`echo $CENTOSCHECK | sed -r 's/^centos-release-([[:digit:]]+)-([[:digit:]]+)\..*$/\1.\2/'`
+        PKGFORMAT=rpm
+        return
+    fi
+
+    FEDORACHECK=`rpm -q fedora-release 2>&1`
+    RET=$?
+    if [ $RET -eq 0 ]; then
+        OSNAME=Fedora
+        OSVER=`echo $FEDORACHECK | sed -r 's/^fedora-release-(.+)-.*$/\1/'`
+        PKGFORMAT=rpm
+        return
+    fi
+
+    if [[ -f /usr/lib/fedora-release ]]; then
+       log "FEDORA3XCHECK=true"
+       OSNAME=Fedora
+       OSVER=$(sed -n -e '/^REDHAT_SUPPORT_PRODUCT_VERSION/s/.*\= *//p' /usr/lib/os-release)
+       PKGFORMAT=rpm
+       return
+    fi
+
+    RHCHECK=$(CheckRH)
+    RET=$?
+    log "RHCHECK=${RHCHECK}"
+    if [[ ${RET} -eq 0 ]]; then
+        OSNAME=RedHat
+        OSVER=${RHCHECK}
+        PKGFORMAT=rpm
+        return
+    fi
+
+    AMZCHECK=`rpm -q system-release 2>&1`
+    RET=$?
+    log "AMZCHECK=${AMZCHECK}"
+    if [ $RET -eq 0 ]; then
+        OSNAME="Amazon"
+        OSVER=`echo $AMZCHECK | sed -r 's/^system-release-([[:digit:]]+)\.([[:digit:]]+)-.*/\1.\2/'`
+        PKGFORMAT=rpm
+        return
+    fi
+
+    SLESCHECK=`rpm -q sles-release 2>&1`
+    RET=$?
+    log "SLESCHECK=${SLESCHECK}"
+    if [ $RET -eq 0 ]; then
+        OSNAME="SuSE"
+        OSVER=`echo $SLESCHECK | sed -r 's/^sles-release-([[:digit:]]+)\.([[:digit:]]+)-.*/\1.\2/'`
+        PKGFORMAT=rpm
+        return
+    fi
+
+    FALLBACKCHECK=$(rpm -qf /etc/os-release 2>/dev/null)
+    if [[ $? -eq 0 ]]; then
+        OS_ID_FROM_FILE=$(awk -F '=' '$1 == "ID" {print $2}' /etc/os-release | tr -d '"')
+        if [[ ${OS_ID_FROM_FILE} == "centos" ]] ; then
+            # This check identifies CentOS versions 8.3 and later
+            OSNAME="CentOS"
+        elif [[ ${OS_ID_FROM_FILE} == "almalinux" ]] ; then
+            OSNAME="AlmaLinux"
+        elif [[ ${OS_ID_FROM_FILE} == "ol" ]] ; then
+            OSNAME="Oracle"
+        else
+            OSNAME="SuSE"
+        fi
+        OSVER=$(echo $FALLBACKCHECK | sed -e 's/^[-a-z]*-release-\([0-9.-]*\)\..*$/\1/')
+        PKGFORMAT=rpm
+        return
+    fi
+}
+
+#
+# Check permissions and access key
+#
+
+[ `id -u` = 0 ] || fail "You must be root to install the Automox Agent."
+log Starting
+log "KEY=${KEY}"
+echo $KEY | grep -E "^[a-f0-9]{8}?-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$" > /dev/null 2>&1 || fail "Invalid access key"
+
+#
+# Check OS
+#
+
+getOS
+
+log "After getOS:  OS=${OS}  OSNAME=${OSNAME} OSVER=${OSVER} ARCH=${ARCH}"
+if [[ $OSNAME == "Unknown" ]]; then
+    fail "Could not determine OS, please contact Automox support at support@automox.com."
+fi
+
+#
+# See if agent already exists
+#
+if [ -f ${AGENT} ]; then
+   fail "${AGENT} already installed"
+fi
+
+#
+# Ensure curl is available
+#
+
+type curl > /dev/null 2>&1
+
+if [[ $? != 0 ]]; then
+    log "Curl not installed"
+    log "Installing curl"
+    if [[ $PKGFORMAT == 'rpm' ]]; then
+        type zypper &>/dev/null
+        if [[ $? -eq 0 ]]; then
+            # sles based
+            stdbuf -o 0 zypper in -y -l curl 2>&1 | tee -a ${LOGFILE}
+        else
+            stdbuf -o 0 yum install -y curl 2>&1 | tee -a ${LOGFILE}
+        fi
+    else
+        apt-get install -y curl 2>&1 | tee -a  ${LOGFILE}
+    fi
+fi
+
+# Re-check
+type curl > /dev/null 2>&1
+
+if [[ $? != 0 ]]; then
+    fail "Curl installation failed"
+fi
+
+#
+# Download package
+#
+
+if [[ $OS == 'Mac' ]]; then
+    PKGFILE=`mktemp /tmp/XXXXXX`
+    /bin/mv ${PKGFILE} ${PKGFILE}.pkg
+    PKGFILE=${PKGFILE}.pkg
+else
+    PKGFILE=`mktemp /tmp/XXXXXX.${PKGFORMAT}`
+fi
+log "PKGFILE=${PKGFILE}"
+
+echo "Downloading file into ${PKGFILE}"
+log "Downloading file into ${PKGFILE}"
+
+if [ -d "/usr/lib/systemd" ]; then
+    SYSTEMD=1
+else
+    SYSTEMD=0
+fi
+URL="https://console.automox.com/installer?os=${OS}&osname=${OSNAME}&osver=${OSVER}&arch=${ARCH}&has_systemd=${SYSTEMD}"
+
+log "URL=${URL}"
+curl -vfLo ${PKGFILE} -k ${URL} >> $LOGFILE 2>&1 || fail "Could not determine package for your OS, please contact support@automox.com"
+
+
+#
+# Import the PGP signing key
+#
+
+if [[ $PKGFORMAT == 'rpm' ]] ; then
+TMPDIR=`mktemp -dt install_agentXXX`
+
+# pgp public key
+echo "
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1
+
+mQENBFZeK4gBCAClnB5SzVLnQFJPSnAfnEzEPTTKIakGnBSjymqoO49U9asZ0jwC
+ZTtie+Zu1ZQEfU6pB7VcRhu5FeSxHSb/ES0Zv8YvNdvlidmsoA5LKge4SLue7UmA
+eG0BdNVB2HK1zwM29gIk9q7xEAYRRTHaXphtRcfx1hWJUjZ526QalMVJyH75PXr1
+wPeqcxJUHObGkPLTvZnJIF6F8uPQvGYwtjPvlN5YG2ThzWJ0KkxZF3xOca6xxU+n
+1JUuK4hWowQ1/TRCDNrXbKI3Eb5ugZAGyWhUmTCKupRqaJXVLNkWPiiDJBrmg4KW
+mIKXOoZnLzt1Wmg9k8jpdABw7sHsljR9PxRfABEBAAG0MVBhdGNoU2ltcGxlIEVu
+Z2luZWVyaW5nIDxzdXBwb3J0QHBhdGNoc2ltcGxlLmNvbT6JATkEEwEIACMFAlZe
+K4gCGwMHCwkIBwMCAQYVCAIJCgsEFgIDAQIeAQIXgAAKCRBV2RuRzmdpqzhVB/98
+vop4nzK7pujClah7RRHcrzVyhmQQaSnfy70DMZxUrhfWMy9NrfyKffwFL3k6PHlo
+ea/HnqLXLF6vrbovtwyoE7+PPs/oIb0aGwS8eYN+Pu++1FvM5yDMdfQ4gbIjhvJo
+YqZtAIGzkV/tNOZr+3o/+xGQvEl8dPwRT6ROHW0mqXMVqdHI3Mnf/565thlLgnX0
+uOxoS47VqsW/tnbyHXfngAzlkTuW7wGNB+YWJ3UjiNmfztms2wFhsn6JDF07SL6U
+E5wQIOz6cVCCzn1sFiVlYP0yZwx8FZ+GTbNyueI5+Ggcc7CMwkkhmqDM5c3af+sT
+Qqh+3koLfl3zNz1YDYxtuQENBFZeK4gBCADZirqdmR39Z2FSE2pIKJc3glydU6/l
+IRxn1R1XGkjtaSRv69fUBoJcc2iRcSuXXYjbKSCMKQQZOhanZw/oRYOYZckO8IEj
+XdWLTW+8ln1g5kHpVBGEeeTpmOVg9BR3ipWKRuDSiXLYE5vu2k+0Pi3dZsVHqGnN
+qDMc0rrQp5ktUDwL6+9nW5H3hjBS/ZNoovOtUoRyVDsZxtcOKWhyh6ACuc/2WaUb
+yhN5mMKSPa4YpprpFWbjmltB6KFkPGwCyaM0Hi6wCLgr2sTakGWqyHorziBaHfI4
+spA23Mr6LMNaXQpwiD8wM5JjpYqxe+0pVCQtHkGiPH9rRJyUGR1SK2WBABEBAAGJ
+AR8EGAEIAAkFAlZeK4gCGwwACgkQVdkbkc5naauEuQf/b04h6fn6CUB8TCblgd7j
+vXzJEYKD3YKXZooiSmqnyNnDzrIRixyjaABlj1RGK4sV99sW7FbZe4/h3vRqtuoE
+ozA2dhJoVMyy0wYSKscN5XDdx+D+OI1VkVsYjptPjDc5dk97JwFwHbvU6ytnIaKl
+AWJ0p2cIuCHTq5Ok3/hu0DP7jCw2zBodNiJdXWIyyTPHsmt97cGKNRUSXLPGrJ6q
+1yoRUICD64ZMJTzVSYNnI8ftdnD780Ew45l7iVRhjVMNLpnJTTmQgy0f6r3a5wGm
+Cas1L6ON1/eHl/uYHAAhcNiPjfPOnvORYCkAuP8KQ7aunrf43FBjvMcsrC8iz9Qa
+HQ==
+=zmYY
+-----END PGP PUBLIC KEY BLOCK-----
+" > $TMPDIR/$PGP_PUB
+
+rpm --import $TMPDIR/$PGP_PUB
+rc=$?
+log "RPM pgp pub key import exited with $rc status"
+
+rm -rf $TMPDIR
+
+fi
+
+#
+# Install package
+#
+echo "Installing package..."
+log "Installing package..."
+
+if [[ $OSNAME == "OSX" ]]; then
+    log "Executing: installer -target / -pkg ${PKGFILE}"
+    installer -target / -pkg ${PKGFILE} 2>&1 | tee -a ${LOGFILE}
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        fail "Package installation failed"
+    fi
+elif [[ $OSNAME == "AlmaLinux" || $OSNAME == "CentOS" || $OSNAME == "RedHat" || $OSNAME == "Amazon" || $OSNAME == "Fedora" ]]; then
+    log "Executing: yum install ${PKGFILE}"
+    stdbuf -o 0 yum install -y ${PKGFILE} 2>&1 | tee -a ${LOGFILE}
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        fail "Package installation failed"
+    fi
+elif [[ $OSNAME == "SuSE" ]]; then
+    log "Executing: zypper -y --no-interactive ${PKGFILE}"
+    zypper in -y -l ${PKGFILE} 2>&1 | tee -a ${LOGFILE}
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        fail "Package installation failed"
+    fi
+else
+    log "Executing: dpkg -i ${PKGFILE}"
+    dpkg -i --ignore-depends=aptitude,lsb-release,dmidecode,lshw ${PKGFILE} 2>&1 | tee -a  ${LOGFILE}
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        fail "Package installation failed"
+    fi
+
+    apt-get -f install -y 2>&1 | tee -a ${LOGFILE}
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        fail "Dependency installation failed"
+    fi
+fi
+
+#
+# Set access key for agent
+#
+log "Executing ${AGENT} --setkey ${KEY}"
+${AGENT} --setkey ${KEY} >> ${LOGFILE} 2>&1 || fail "Setting access key failed!"
+
+#
+# Check Compatibility
+#
+log "Executing ${AGENT} --checkcompat"
+COMPAT_FILE=`mktemp /tmp/XXXXXX`
+${AGENT} --checkcompat >> ${COMPAT_FILE} 2>&1
+if [[ ${PIPESTATUS[0]} != 0 ]]; then
+    log "$( cat ${COMPAT_FILE} )"
+fi
+rm "${COMPAT_FILE}"
+
+echo
+if [[ $OSNAME == 'OSX' ]]; then
+    echo "Installation complete, you may now start the service by executing the command 'sudo launchctl load /Library/LaunchDaemons/com.automox.agent.plist'"
+else
+    echo "Installation complete, you may now start the service by executing the command 'sudo service amagent start'"
+fi

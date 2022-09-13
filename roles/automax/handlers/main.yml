@@ -1,0 +1,5 @@
+---
+- name: restart automax
+  service:
+    name: amagent
+    state: restarted

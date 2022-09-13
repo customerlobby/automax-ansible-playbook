@@ -1,0 +1,494 @@
+# This is the default ansible 'hosts' file.
+#
+# It should live in /etc/ansible/hosts
+#
+#   - Comments begin with the '#' character
+#   - Blank lines are ignored
+#   - Groups of hosts are delimited by [header] elements
+#   - You can enter hostnames or ip addresses
+#   - A hostname/ip can be a member of multiple groups
+
+# Ex 1: Ungrouped hosts, specify before any group headers.
+
+## green.example.com
+## blue.example.com
+## 192.168.100.1
+## 192.168.100.10
+
+# Ex 2: A collection of hosts belonging to the 'webservers' group
+
+#[webservers]
+## alpha.example.org
+## beta.example.org
+## 192.168.1.100
+## 192.168.1.110
+#10.1.31.12
+
+# If you have multiple hosts following a pattern you can specify
+# them like this:
+
+## www[001:006].example.com
+
+# Ex 3: A collection of database servers in the 'dbservers' group
+
+## [dbservers]
+## 
+## db01.intranet.mydomain.net
+## db02.intranet.mydomain.net
+## 10.25.1.56
+## 10.25.1.57
+
+# Here's another example of host ranges, this time there are no
+# leading 0s:
+
+## db-[99:101]-node.example.com
+
+# ====== BEGIN GLOBAL CONFIGURATION ======
+
+[all:vars]
+ansible_user=ubuntu
+ansible_os_family=Debian
+
+# ===== END GLOBAL CONFIGURATION ======
+
+# ====== BEGIN POC Groups =======
+
+[tag_Role_webserver]
+
+[tag_Role_cicd]
+
+[tag_Environment_poc]
+
+[tag_Environment_ppe]
+
+[tag_Role_api]
+
+[tag_Name_poc]
+
+[tag_Name_poc_api-web]
+
+[tag_Name_poc_members]
+
+[tag_Name_poc_campaigns]
+
+[tag_Name_poc_dcp]
+
+[tag_Name_poc_mapper-cleaner]
+
+[tag_Name_poc_postcards]
+
+[tag_Name_poc_services]
+
+[tag_Name_poc_api-worker]
+
+[tag_Name_poc_www]
+
+[tag_Name_poc_fetchers]
+
+[tag_Name_poc_blog]
+
+[tag_Name_poc_accounts]
+
+[tag_Name_poc_ingester_master]
+
+[tag_Name_poc_ingester_worker1]
+
+[tag_Name_poc_ingester_worker2]
+
+[tag_Name_poc_kafka]
+
+[tag_Name_poc_hbase]
+
+
+
+[poc:children]
+tag_Name_poc
+
+[ppe:children]
+tag_Environment_ppe
+
+[api:children]
+tag_Role_api
+
+[tag_Name_poc_mysql]
+
+[poc-mysql:children]
+tag_Name_poc_mysql
+
+[poc-fetchers:children]
+tag_Name_poc_fetchers
+
+[poc-api-web:children]
+tag_Name_poc_api-web
+
+[poc-blog:children]
+tag_Name_poc_blog
+
+[poc-accounts:children]
+tag_Name_poc_accounts
+
+[poc-members:children]
+tag_Name_poc_members
+
+[poc-campaigns:children]
+tag_Name_poc_campaigns
+
+[poc-dcp:children]
+tag_Name_poc_dcp
+
+[poc-mapper-cleaner:children]
+tag_Name_poc_mapper-cleaner
+
+[poc-postcards:children]
+tag_Name_poc_postcards
+
+[poc-services:children]
+tag_Name_poc_services
+
+[poc-api-worker:children]
+tag_Name_poc_api-worker
+
+[poc-www:children]
+tag_Name_poc_www
+
+[cicd:children]
+tag_Role_cicd
+
+[poc-data-ingester-master:children]
+tag_Name_poc_ingester_master 
+
+[poc-data-ingester-worker1:children]
+tag_Name_poc_ingester_worker1 
+
+[poc-data-ingester-worker2:children]
+tag_Name_poc_ingester_worker2 
+
+[poc-kafka:children]
+tag_Name_poc_kafka
+
+[poc-hbase:children]
+tag_Name_poc_hbase
+
+
+[webservers:children]
+tag_Role_webserver
+
+# ====== END POC Groups =======
+
+# ====== BEGIN Dev Groups =======
+
+# Identifies all dev EC2 instances by EC2 Tag [Environment=dev]
+
+[tag_Environment_dev]
+
+[tag_Name_dev]
+
+# Short hand for all dev instances
+[dev:children]
+tag_Name_dev
+
+# Identifies instances by EC2 Tag [Name=dev-app]
+# At present instance with this tag hosts following components:
+# 1) API
+# 2) Members
+# 3) Accounts
+#[tag_Name_dev_app]
+
+# Short hand for all dev app instances (API, Members, Accounts)
+#[dev-app:children]
+#tag_Name_dev_app
+
+# Identifies instances by EC2 Tag [Name=dev-services]
+#[tag_Name_dev_services]
+
+# Short hand for all dev services instances
+#[dev-services:children]
+#tag_Name_dev_services
+
+# Identifies instances by EC2 Tag [Name=dev-services-01]
+[tag_Name_dev_services]
+
+# Short hand for all dev services-01 instances
+[dev-services:children]
+tag_Name_dev_services
+
+# Identifies instances by EC2 Tag [Name=www]
+[tag_Name_dev_www]
+
+# Short hand for all dev www instances
+[dev-www:children]
+tag_Name_dev_www
+
+# An alias for dev API web instances which just
+# points to dev-app instances
+[tag_Name_dev_api-web]
+
+[dev-api-web:children]
+tag_Name_dev_api-web
+
+# An alias for dev-accounts web instances which just
+# points to dev-app instances
+[tag_Name_dev_accounts]
+
+[dev-accounts:children]
+tag_Name_dev_accounts
+
+# An alias for members instances which just
+# points to dev-app instances
+[tag_Name_dev_members]
+
+[dev-members:children]
+tag_Name_dev_members
+
+[tag_Name_dev_fetchers]
+
+[dev-fetchers:children]
+tag_Name_dev_fetchers
+
+[tag_Name_dev_postcards]
+
+[dev-postcards:children]
+tag_Name_dev_postcards
+
+[tag_Name_dev_campaigns]
+
+[dev-campaigns:children]
+tag_Name_dev_campaigns
+
+[tag_Name_dev_dcp]
+
+[dev-dcp:children]
+tag_Name_dev_dcp
+
+[tag_Name_dev_mapper-cleaner]
+
+[dev-mapper-cleaner:children]
+tag_Name_dev_mapper-cleaner
+
+[tag_Name_dev_api-worker]
+
+[dev-api-worker:children]
+tag_Name_dev_api-worker
+
+# ====== END dev Groups ======
+
+# ====== BEGIN Staging Groups =======
+
+# Identifies all staging EC2 instances by EC2 Tag [Environment=staging]
+[tag_Environment_staging]
+
+[tag_Name_staging]
+
+# Short hand for all staging instances
+[staging:children]
+tag_Name_staging
+
+# Identifies instances by EC2 Tag [Name=staging-app]
+# At present instance with this tag hosts following components:
+# 1) API
+# 2) Members
+# 3) Accounts
+[tag_Name_staging_accounts]
+
+[tag_Name_staging_api-web]
+
+# Short hand for all staging app instances (API, Members, Accounts)
+#[staging-app:children]
+#tag_Name_staging_app
+
+# Identifies instances by EC2 Tag [Name=staging-services]
+[tag_Name_staging_services]
+
+# Short hand for all staging services instances
+[staging-services:children]
+tag_Name_staging_services
+
+# Identifies instances by EC2 Tag [Name=staging-services-01]
+#[tag_Name_staging_services_01]
+
+# Short hand for all staging services-01 instances
+#[staging-services-01:children]
+#tag_Name_staging_services_01
+
+# Identifies instances by EC2 Tag [Name=www]
+[tag_Name_staging_www]
+
+# Short hand for all staging www instances
+[staging-www:children]
+tag_Name_staging_www
+
+# An alias for staging API web instances which just
+# points to staging-app instances
+[staging-api-web:children]
+tag_Name_staging_api-web
+
+# An alias for staging-accounts web instances which just
+# points to staging-app instances
+[staging-accounts:children]
+tag_Name_staging_accounts
+
+# An alias for members instances which just
+# points to staging-app instances
+[tag_Name_staging_members]
+
+[staging-members:children]
+tag_Name_staging_members
+
+[tag_Name_staging_fetchers]
+
+[staging-fetchers:children]
+tag_Name_staging_fetchers
+
+[tag_Name_staging_postcards]
+
+[staging-postcards:children]
+tag_Name_staging_postcards
+
+[tag_Name_staging_campaigns]
+
+[staging-campaigns:children]
+tag_Name_staging_campaigns
+
+[tag_Name_staging_dcp]
+
+[staging-dcp:children]
+tag_Name_staging_dcp
+
+[tag_Name_staging_mapper-cleaner]
+
+[staging-mapper-cleaner:children]
+tag_Name_staging_mapper-cleaner
+
+[tag_Name_staging_api-worker]
+
+[staging-api-worker:children]
+tag_Name_staging_api-worker
+
+# ====== END Staging Groups ======
+
+# ====== BEGIN Production Groups =======
+
+# Identifies all staging EC2 instances by EC2 Tag [Environment=staging]
+[tag_Environment_production]
+
+#[production:children]
+#tag_Environment_production
+
+[tag_Name_production]
+
+[production:children]
+tag_Name_production
+
+[tag_Role_worker00]
+
+[prod-mgmt-server:children]
+tag_Role_worker00
+
+# Short hand for all production app-internal instances
+[tag_Name_production_api-web]
+
+[tag_Name_production_accounts]
+
+#[production-app-internal:children]
+#tag_Name_production_app_internal
+
+# Short hand alias for production API web
+#[production-api:children]
+#tag_Name_production_app_internal
+
+# Short hand alias for production API web
+[production-api-web:children]
+tag_Name_production_api-web
+
+# Short hand alias for production Accounts
+[production-accounts:children]
+tag_Name_production_accounts
+
+# Short hand for all production blog instances
+[tag_Name_production_blog]
+
+[production-blog:children]
+tag_Name_production_blog
+
+# Short hand for all production campaigns instances
+[tag_Name_production_campaigns]
+
+[production-campaigns:children]
+tag_Name_production_campaigns
+
+# Short hand for all production dcp instances
+[tag_Name_production_dcp]
+
+[production-dcp:children]
+tag_Name_production_dcp
+
+# Short hand for all production direct_connect_ftp instances
+#[tag_Name_production_direct_connect_ftp]
+
+#[production-ftp:children]
+#tag_Name_production_direct_connect_ftp
+
+# Short hand for all production mapper-cleaner instances
+[tag_Name_production_mapper-cleaner]
+
+#[production-mapr:children]
+#tag_Name_production_mapper_cleaner
+
+[production-mapper-cleaner:children]
+tag_Name_production_mapper-cleaner
+
+# Short hand for all production members instances
+[tag_Name_production_members]
+
+[production-members:children]
+tag_Name_production_members
+
+# Short hand for all production postcards instances
+[tag_Name_production_postcards]
+
+[production-postcards:children]
+tag_Name_production_postcards
+
+# Short hand for all production services instances
+[tag_Name_production_services]
+
+[production-services:children]
+tag_Name_production_services
+
+# Short hand for all production worker-02 instances
+[tag_Name_production_api-worker]
+
+[production-api-worker:children]
+tag_Name_production_api-worker
+
+# Short hand for all production www instances
+[tag_Name_production_www]
+
+[production-www:children]
+tag_Name_production_www
+
+# Short hand for all production master-db instances
+#[tag_Name_production_master_db]
+
+#[production-master-db:children]
+#tag_Name_production_master_db
+
+# Short hand for all production slave-db instances
+#[tag_Name_production_slave_db]
+
+#[production-slave-db:children]
+#tag_Name_production_slave_db
+
+# Short hand for all production redis instances
+#[tag_Name_production_redis]
+
+#[production-redis:children]
+#tag_Name_production_redis
+
+# Short hand for all production fetcher instances
+[tag_Name_production_fetchers]
+
+[production-fetchers:children]
+tag_Name_production_fetchers
+
+# ====== END Production Groups =======

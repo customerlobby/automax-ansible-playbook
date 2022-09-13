@@ -1,0 +1,31 @@
+---
+- name: Download Automax
+  get_url:
+    url: 'https://console.automox.com/downloadInstaller?accesskey={{ automax_access_key}}'
+    dest: '/tmp/install-agent.sh'
+    mode: 0755
+  when: local_install == "false"
+
+- name: Add Installer Debian file
+  become: true
+  become_user: root
+  template:
+    src: install_agent_debian.sh.j2
+    dest: "/tmp/install-agent.sh"
+    mode: "1777"
+
+  when:  ansible_os_family == "Debian" and local_install == "true"
+
+- name: Add Installer RedHat file
+  become: true
+  become_user: root
+  template:
+    src: install_agent_rhel.sh.j2
+    dest: "/tmp/install-agent.sh"
+    mode: "1777"
+  when:  ansible_os_family == "RedHat" and local_install == "true"
+
+- name: Install Automax
+  shell: "/tmp/install-agent.sh"
+  notify:
+    - restart automax
