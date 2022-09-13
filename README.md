@@ -11,7 +11,7 @@
 
     4. Run the shell script as given in the next section.
 
-### How RUN Playbook 
+### How do I Run Playbook 
 
     Usage:
         -n tagname:  The Instance Tag on which component playbook needs to be run.
