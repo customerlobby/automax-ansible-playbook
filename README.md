@@ -1,4 +1,17 @@
-Ansible Playbook to Install automax on any ec2 nodes
+
+### How do I get set up? ###
+    1. Install AWSCLI and configure AWS with the access key, secret key, region of the AWS account where the hosts to be provisioned exist.
+
+    2. Export the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+    Example:
+    export AWS_ACCESS_KEY_ID=‘AK123’
+    export AWS_SECRET_ACCESS_KEY=‘abc123’
+
+    3. Install Ansible (Install ansible version > 2.1, since few parameters from greater versions have been used in the playbooks)
+
+    4. Run the shell script as given in the next section.
+
+### How RUN Playbook 
 
     Usage:
         -n tagname:  The Instance Tag on which component playbook needs to be run.
